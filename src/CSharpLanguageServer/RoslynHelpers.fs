@@ -30,7 +30,7 @@ open Microsoft.CodeAnalysis.CSharp.Formatting
 
 let roslynTagToLspCompletion tag =
     match tag with
-    | "Class"         -> Types.CompletionItemKind.Class
+    | "Class"         -> CompletionItemKind.Class
     | "Delegate"      -> Types.CompletionItemKind.Function
     | "Enum"          -> Types.CompletionItemKind.Enum
     | "EnumMember"    -> Types.CompletionItemKind.EnumMember
@@ -963,19 +963,27 @@ let tryLoadSolutionOnPath (logMessage: AsyncLogFn) solutionPath = async {
         return None
 }
 
-let tryLoadSolutionFromProjectFiles (logMessage: AsyncLogFn) (projFiles: string list) = async {
+let tryLoadSolutionFromProjectFiles (logMessage: AsyncLogFn) (projectFiles: string list) = async {
     let msbuildWorkspace = MSBuildWorkspace.Create(CSharpLspHostServices(logMessage))
     msbuildWorkspace.LoadMetadataForReferencedProjects <- true
 
-    for file in projFiles do
-        do! logMessage (sprintf "loading project \"%s\".." file)
-        try
-            do! msbuildWorkspace.OpenProjectAsync(file) |> Async.AwaitTask |> Async.Ignore
-        with ex ->
-            do! logMessage (sprintf "could not OpenProjectAsync('%s'): %s" file (ex |> string))
-        ()
+    // for file in projectFiles do
+    //     do! logMessage (sprintf "loading project \"%s\".." file)
+    //     try
+    //         do! msbuildWorkspace.OpenProjectAsync(file) |> Async.AwaitTask |> Async.Ignore
+    //     with ex ->
+    //         do! logMessage (sprintf "could not OpenProjectAsync('%s'): %s" file (ex |> string))
 
-    do! logMessage (sprintf "OK, %d project files loaded" projFiles.Length)
+    let f file = 
+        msbuildWorkspace.OpenProjectAsync(file) |> Async.AwaitTask
+
+    projectFiles
+    |> List.map f
+    |> Async.Parallel
+    |> Async.Ignore
+    |> Async.RunSynchronously
+
+    do! logMessage (sprintf "OK, %d project files loaded" projectFiles.Length)
 
     for diag in msbuildWorkspace.Diagnostics do
         do! logMessage ("msbuildWorkspace.Diagnostics: " + diag.ToString())
