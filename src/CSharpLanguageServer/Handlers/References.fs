@@ -1,6 +1,7 @@
 namespace CSharpLanguageServer.Handlers
 
 open System
+open System.Text.RegularExpressions
 
 open Ionide.LanguageServerProtocol.Server
 open Ionide.LanguageServerProtocol.Types
@@ -39,6 +40,10 @@ module References =
                   RegisterOptions = registerOptions |> serialize |> Some }
 
     let handle (context: ServerRequestContext) (p: ReferenceParams) : AsyncLspResult<Location[] option> = async {
+        let isNotGenerated (l: Microsoft.CodeAnalysis.Location) =
+            let filePath = l.SourceTree.FilePath
+            not (Regex.IsMatch(filePath, "\.generated\.cs"))
+
         match! context.FindSymbol p.TextDocument.Uri p.Position with
         | None -> return None |> success
         | Some symbol ->
@@ -46,6 +51,7 @@ module References =
             return
                 refs
                 |> Seq.collect (fun r -> r.Locations)
+                |> Seq.filter (fun rl -> isNotGenerated rl.Location)
                 |> Seq.map (fun rl -> Location.fromRoslynLocation rl.Location)
                 |> Seq.distinct
                 |> Seq.toArray

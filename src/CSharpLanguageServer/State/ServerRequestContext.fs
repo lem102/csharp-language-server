@@ -9,6 +9,7 @@ open CSharpLanguageServer.State.ServerState
 open CSharpLanguageServer.Types
 open CSharpLanguageServer.RoslynHelpers
 open CSharpLanguageServer.Conversions
+open System.Text.RegularExpressions
 
 type ServerRequestContext (requestId: int, state: ServerState, emitServerEvent) =
     let mutable solutionMaybe = state.Solution
@@ -102,9 +103,14 @@ type ServerRequestContext (requestId: int, state: ServerState, emitServerEvent) 
             (project: Microsoft.CodeAnalysis.Project option) = async {
         let mutable aggregatedLspLocations = []
         for l in symbol.Locations do
-            let! symLspLocations = this.ResolveSymbolLocation project symbol l
+            let filePath = l.SourceTree.FilePath
+            let isGenerated = Regex.IsMatch(filePath, "\.generated\.cs")
 
-            aggregatedLspLocations <- aggregatedLspLocations @ symLspLocations
+            if
+                not isGenerated
+            then 
+                let! symLspLocations = this.ResolveSymbolLocation project symbol l
+                aggregatedLspLocations <- aggregatedLspLocations @ symLspLocations
 
         return aggregatedLspLocations
     }
